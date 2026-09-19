@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.rssnews.fetch</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/user/Documents/Pets/rss-news/fetch.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/user/Documents/Pets/rss-news</string>
+    <!-- Every hour at :17 — an off-minute, so we are not hitting these small
+         local sites at the same instant as every other scheduler on the hour. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Minute</key><integer>17</integer></dict>
+    </array>
+    <key>StandardOutPath</key>
+    <string>/Users/user/Documents/Pets/rss-news/logs/fetch.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/user/Documents/Pets/rss-news/logs/fetch.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
