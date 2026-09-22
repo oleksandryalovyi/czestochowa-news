@@ -128,6 +128,25 @@ def extract_items(root, feed):
         }
 
 
+def fetch_via_fallback_rss(conn, feed, bootstrap):
+    """Used when scrape_naszemiasto.run() raises (e.g. the site starts
+    answering 403). Goes through the old FetchRSS-generated feed instead, so
+    one blocked run doesn't just drop the source.
+
+    FetchRSS stamps its own scrape time as pubDate, not the article's real
+    publish time, so that field is deliberately discarded here — items fall
+    back to first_seen, same as this source did before the scraper existed.
+    """
+    _, body, _, _ = http_get(feed["fallback_url"])
+    root = parse_feed(body)
+    new = 0
+    for item in extract_items(root, feed):
+        item["pub_ts"] = None
+        if store.upsert_item(conn, item, bootstrap=bootstrap):
+            new += 1
+    return new
+
+
 def enrich_missing_summaries(conn):
     """Fill in summaries for feeds that publish none of their own."""
     pending = store.items_missing_summary(conn)
@@ -154,15 +173,34 @@ def run():
         if feed.get("kind") == "scrape":
             try:
                 new, seen = scrape_naszemiasto.run(conn, feed, bootstrap)
+                store.save_feed_state(conn, feed["id"])
+                conn.commit()
+                total_new += new
+                log(f"{feed['id']}: {seen} candidate(s) checked, {new} new")
             except Exception as e:
                 log(f"{feed['id']}: SCRAPE FAILED — {type(e).__name__}: {e}")
-                store.save_feed_state(conn, feed["id"], error=str(e))
+                if not feed.get("fallback_url"):
+                    store.save_feed_state(conn, feed["id"], error=str(e))
+                    conn.commit()
+                    continue
+                log(f"{feed['id']}: falling back to FetchRSS")
+                try:
+                    new = fetch_via_fallback_rss(conn, feed, bootstrap)
+                except RuntimeError as e2:
+                    log(f"{feed['id']}: FALLBACK ALSO FAILED — {e2}")
+                    store.save_feed_state(
+                        conn, feed["id"],
+                        error=f"scrape failed ({e}); fallback failed ({e2})")
+                    conn.commit()
+                    continue
+                # The source did come through, just via the safety net — the
+                # digest's per-source health check should read this as OK,
+                # not flag a real outage. The fetch.log line above is the
+                # visible record that the scraper needs attention.
+                store.save_feed_state(conn, feed["id"])
                 conn.commit()
-                continue
-            store.save_feed_state(conn, feed["id"])
-            conn.commit()
-            total_new += new
-            log(f"{feed['id']}: {seen} candidate(s) checked, {new} new")
+                total_new += new
+                log(f"{feed['id']}: fallback RSS ok, {new} new")
             continue
 
         state = store.get_feed_state(conn, feed["id"])

@@ -46,6 +46,17 @@ would get re-fetched every hour for no reason. A fresh backlog is capped at
 `scrape_naszemiasto.py`) and picked up over subsequent hourly runs, so it never
 turns one poll into a multi-minute crawl.
 
+**Fallback:** if the scraper errors for any reason (most likely a 403 if the
+site starts blocking it), `fetch.py` falls back for that run to the old
+FetchRSS-generated feed (`feeds.py`'s `fallback_url`) rather than losing the
+source entirely. Fallback items never get their `pubDate` trusted — FetchRSS
+stamps its own scrape time, not the real publish time — so they fall back to
+`first_seen`, same as before the scraper existed. A fallback that succeeds is
+still logged clearly in `logs/fetch.log`, but is *not* surfaced as an
+unhealthy source in the digest, since the source did come through — just via
+the safety net. Only when both the scrape and the fallback fail is it marked
+unhealthy.
+
 **Note on robots.txt:** `czestochowa.naszemiasto.pl/robots.txt` names
 `ClaudeBot` (along with `GPTBot`, `CCBot`, etc.) as disallowed, while leaving
 `User-agent: *` open for general browsing. This was flagged to and confirmed

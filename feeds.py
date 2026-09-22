@@ -12,6 +12,12 @@ FEEDS = [
         # with its own scrape time.
         "kind": "scrape",
         "trust_pubdate": True,
+        # If the scraper errors (e.g. a 403 — the site starts blocking us),
+        # fetch.py falls back to this old FetchRSS-generated feed for that run
+        # rather than losing the source entirely. Fallback items are never
+        # trusted for pubDate (see fetch.py), so they fall back to first_seen
+        # like this source did before the scraper existed.
+        "fallback_url": "https://fetchrss.com/feed/1x2ohgBJlEcd1x2oqv9IrFnu.rss",
     },
     {
         "id": "informacje-czest",
