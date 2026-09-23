@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.rssnews.fetchrss-keepalive</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/user/Documents/Pets/rss-news/keepalive_fetchrss.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/user/Documents/Pets/rss-news</string>
+    <!-- Every 3 days. launchd has no calendar primitive for "every N days" —
+         StartCalendarInterval is for fixed times of day/week/month, not a
+         rolling cadence — so StartInterval (seconds since the job last ran)
+         is the correct mechanism here. If the Mac is asleep or off when the
+         interval elapses, launchd runs it as soon as it's next awake, which
+         is exactly what a keepalive ping wants. -->
+    <key>StartInterval</key>
+    <integer>259200</integer>
+    <!-- Run once immediately on load too, so installing this doesn't leave
+         the feed untouched for the first 3 days. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/user/Documents/Pets/rss-news/logs/fetchrss-keepalive.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/user/Documents/Pets/rss-news/logs/fetchrss-keepalive.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

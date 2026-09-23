@@ -57,6 +57,14 @@ unhealthy source in the digest, since the source did come through — just via
 the safety net. Only when both the scrape and the fallback fail is it marked
 unhealthy.
 
+**Keeping the fallback alive:** FetchRSS deletes feeds it hasn't been asked
+for in a while. Since the fallback is only ever hit when the scraper fails,
+it could otherwise sit untouched for months and get deleted right when it's
+actually needed. `keepalive_fetchrss.py` exists purely to prevent that — it
+makes one plain request to the FetchRSS URL every 3 days
+(`com.user.rssnews.fetchrss-keepalive`, see below) and does nothing else: no
+parsing, no storing. The real fallback logic lives only in `fetch.py`.
+
 **Note on robots.txt:** `czestochowa.naszemiasto.pl/robots.txt` names
 `ClaudeBot` (along with `GPTBot`, `CCBot`, etc.) as disallowed, while leaving
 `User-agent: *` open for general browsing. This was flagged to and confirmed
@@ -72,6 +80,7 @@ large-scale AI-training crawling that directive targets.
 | `netutil.py` | Shared HTTP + text helpers (User-Agent, retries, link/text cleanup, JSON-LD parsing) used by both `fetch.py` and `scrape_naszemiasto.py` |
 | `fetch.py` | Hourly poll → SQLite. Conditional GET, retries, per-source failure isolation, page-summary enrichment, dispatches to the scraper for `kind: "scrape"` sources |
 | `scrape_naszemiasto.py` | naszemiasto.pl scraper — see above |
+| `keepalive_fetchrss.py` | Pings the FetchRSS fallback feed every 3 days so FetchRSS doesn't delete it for inactivity — see above |
 | `store.py` | Schema, `first_seen` bookkeeping, the scrape classification cache, the 24h window query |
 | `digest.py` | Builds `digests/YYYY-MM-DD.{json,md}` + `latest.{json,md}`, mirrors to Notion |
 | `notion.py` | Minimal Notion REST client |
@@ -83,6 +92,9 @@ Stdlib only — no venv, nothing for `launchd` to activate.
 
 - `com.user.rssnews.fetch` — hourly at **:17**
 - `com.user.rssnews.digest` — daily at **07:55** and **18:55**
+- `com.user.rssnews.fetchrss-keepalive` — every **3 days** (`StartInterval`,
+  not a fixed clock time — see below), plus once immediately whenever the job
+  is loaded
 - Claude scheduled task `czestochowa-telegram-pick` — daily around **08:05**,
   reads `digests/latest.json` and writes `drafts/telegram.md`, appends it to a
   Notion page, and fires a macOS notification when done (see its `SKILL.md`
