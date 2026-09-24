@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.rssnews.healthcheck</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/user/Documents/Pets/rss-news/healthcheck.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/user/Documents/Pets/rss-news</string>
+    <!-- Every 2 hours. Catches the exact failure mode found on 2026-09-21:
+         a reboot after which launchd silently failed to reload the fetch and
+         digest LaunchAgents, with nothing surfacing it for 3 days. This job
+         re-bootstraps anything it finds missing and fires a macOS
+         notification only when it actually had to — silent otherwise. -->
+    <key>StartInterval</key>
+    <integer>7200</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/user/Documents/Pets/rss-news/logs/healthcheck.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/user/Documents/Pets/rss-news/logs/healthcheck.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

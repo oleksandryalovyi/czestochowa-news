@@ -81,6 +81,7 @@ large-scale AI-training crawling that directive targets.
 | `fetch.py` | Hourly poll → SQLite. Conditional GET, retries, per-source failure isolation, page-summary enrichment, dispatches to the scraper for `kind: "scrape"` sources |
 | `scrape_naszemiasto.py` | naszemiasto.pl scraper — see above |
 | `keepalive_fetchrss.py` | Pings the FetchRSS fallback feed every 3 days so FetchRSS doesn't delete it for inactivity — see above |
+| `healthcheck.py` | Every 2h, re-registers any of the launchd jobs below that silently isn't loaded, and notifies if it had to — see "If a launchd job goes missing" below |
 | `store.py` | Schema, `first_seen` bookkeeping, the scrape classification cache, the 24h window query |
 | `digest.py` | Builds `digests/YYYY-MM-DD.{json,md}` + `latest.{json,md}`, mirrors to Notion |
 | `notion.py` | Minimal Notion REST client |
@@ -95,6 +96,8 @@ Stdlib only — no venv, nothing for `launchd` to activate.
 - `com.user.rssnews.fetchrss-keepalive` — every **3 days** (`StartInterval`,
   not a fixed clock time — see below), plus once immediately whenever the job
   is loaded
+- `com.user.rssnews.healthcheck` — every **2 hours**, plus once immediately on
+  load — see "If a launchd job goes missing" below
 - Claude scheduled task `czestochowa-telegram-pick` — daily around **08:05**,
   reads `digests/latest.json` and writes `drafts/telegram.md`, appends it to a
   Notion page, and fires a macOS notification when done (see its `SKILL.md`
@@ -107,6 +110,35 @@ only fires while the app is running (a missed run happens on next launch).
 launchctl list | grep rssnews                       # status
 launchctl kickstart -k gui/$(id -u)/com.user.rssnews.fetch   # run now
 tail -f logs/fetch.log
+```
+
+## If a launchd job goes missing
+
+Normally `~/Library/LaunchAgents` auto-reloads on every login/reboot — no
+manual step should ever be needed. On 2026-09-21, though, a reboot left
+`com.user.rssnews.fetch` and `.digest` unregistered (not disabled, not
+crashed — `launchctl print` just reported "Could not find service"), and
+nothing surfaced that for 3 days.
+
+`healthcheck.py` exists to catch a repeat: every 2 hours it checks whether
+`fetch`, `digest`, and `fetchrss-keepalive` are actually loaded and, if not,
+re-runs `launchctl bootstrap` on them itself. It only sends a macOS
+notification when it actually had to fix something — silent otherwise. Worst
+case after a bad reboot, you're back up within ~2 hours with a notification,
+not silence for days.
+
+The healthcheck job is itself a LaunchAgent, so it shares the same small,
+unexplained exposure the other two had. To check everything by hand at any
+time:
+
+```bash
+launchctl list | grep rssnews   # should show all four jobs
+```
+
+If one's ever missing, reload it directly:
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.user.rssnews.<name>.plist
 ```
 
 ## Notion
