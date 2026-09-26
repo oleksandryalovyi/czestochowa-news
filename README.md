@@ -112,34 +112,58 @@ launchctl kickstart -k gui/$(id -u)/com.user.rssnews.fetch   # run now
 tail -f logs/fetch.log
 ```
 
-## If a launchd job goes missing
+## If fetch/digest go quiet: two failure modes seen so far
 
-Normally `~/Library/LaunchAgents` auto-reloads on every login/reboot — no
-manual step should ever be needed. On 2026-09-21, though, a reboot left
-`com.user.rssnews.fetch` and `.digest` unregistered (not disabled, not
-crashed — `launchctl print` just reported "Could not find service"), and
-nothing surfaced that for 3 days.
+Normally none of this needs attention — `~/Library/LaunchAgents` auto-reloads
+on every login/reboot, and the jobs just run on schedule. Two distinct ways
+that broke down have been observed, both invisible to a plain "is the job
+loaded" check, which is why `healthcheck.py` checks for both specifically:
 
-`healthcheck.py` exists to catch a repeat: every 2 hours it checks whether
-`fetch`, `digest`, and `fetchrss-keepalive` are actually loaded and, if not,
-re-runs `launchctl bootstrap` on them itself. It only sends a macOS
-notification when it actually had to fix something — silent otherwise. Worst
-case after a bad reboot, you're back up within ~2 hours with a notification,
-not silence for days.
+1. **Not registered at all.** On 2026-09-21, a reboot left
+   `com.user.rssnews.fetch` and `.digest` unregistered (not disabled, not
+   crashed — `launchctl print` just reported "Could not find service"), with
+   the plists/symlinks on disk still perfectly valid. Nothing surfaced this
+   for 3 days.
+2. **Registered, but launchd refuses to spawn it.** After manually
+   re-registering the two jobs above, launchd kept trying to fire them on
+   schedule (confirmed via its `runs` counter incrementing) but every attempt
+   failed instantly with exit code 78 (`EX_CONFIG`) and zero output — the
+   process never actually started. `launchctl print` still shows such a job
+   as loaded, so it looks completely fine at a glance. The confirmed cause
+   was specific to the job's own log file — each had been open across ~3
+   weeks, through the reboot above — and moving it aside so launchd creates a
+   fresh one at the same path fixed it immediately; a plain `bootout` +
+   `bootstrap` of the job itself did **not** fix it. Neither failure mode's
+   underlying OS-level cause is fully understood; this is what was verified
+   empirically.
 
-The healthcheck job is itself a LaunchAgent, so it shares the same small,
-unexplained exposure the other two had. To check everything by hand at any
-time:
+`healthcheck.py` runs every 2 hours and checks for both: whether `fetch`,
+`digest`, and `fetchrss-keepalive` are actually registered (recovers with
+`bootstrap`), and whether each one's log has gone stale relative to how often
+it's supposed to run (recovers by rotating the log aside — kept, not deleted,
+as `logs/<name>.log.stuck-<timestamp>` — then re-registering and kicking it
+off). It sends a macOS notification whenever it had to act, and a distinctly
+worded one if a fix didn't take — silent only when everything's genuinely
+fine. Worst case, you're back up within ~2 hours with a notification either
+way, not silence for days.
+
+The healthcheck job is itself a LaunchAgent, so it shares some of the same
+exposure. To check everything by hand at any time:
 
 ```bash
-launchctl list | grep rssnews   # should show all four jobs
+launchctl list | grep rssnews                        # should show all four jobs
+launchctl print gui/$(id -u)/com.user.rssnews.fetch | grep -E "last exit|runs ="
 ```
 
-If one's ever missing, reload it directly:
+If a job is missing entirely, reload it directly:
 
 ```bash
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.user.rssnews.<name>.plist
 ```
+
+If it's loaded but stuck (`last exit code` nonzero, `runs` climbing, log not
+growing), do what `healthcheck.py` does: `bootout` it, move its log file
+aside, `bootstrap` it again.
 
 ## Notion
 
